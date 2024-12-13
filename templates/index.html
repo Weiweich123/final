@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gym Equipment Reservation</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 8px;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+        .available {
+            background-color: lightgreen;
+        }
+        .in-use {
+            background-color: lightcoral;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Gym Equipment Reservation</h1>
+
+    <h2>Equipment List</h2>
+    <table id="equipment-table">
+        <thead>
+            <tr>
+                <th>Equipment Name</th>
+                <th>Status</th>
+                <th>Usage Count</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Equipment rows will be dynamically added here -->
+        </tbody>
+    </table>
+
+    <h2>Reserve Equipment</h2>
+    <form id="reservation-form">
+        <label for="equipment-id">Equipment ID:</label>
+        <input type="number" id="equipment-id" required><br><br>
+
+        <label for="user">Your Name:</label>
+        <input type="text" id="user" required><br><br>
+
+        <label for="time-slot">Time Slot:</label>
+        <input type="text" id="time-slot" required><br><br>
+
+        <button type="submit">Reserve</button>
+    </form>
+
+    <h2>Release Equipment</h2>
+    <form id="release-form">
+        <label for="release-equipment-id">Equipment ID:</label>
+        <input type="number" id="release-equipment-id" required><br><br>
+        <button type="submit">Release</button>
+    </form>
+
+    <h2>Student Reservation Report</h2>
+    <form id="student-report-form">
+        <label for="student-name">Student Name:</label>
+        <input type="text" id="student-name" required><br><br>
+        <button type="submit">Generate Report</button>
+    </form>
+
+    <div id="student-report" style="margin-top: 20px;">
+        <!-- Student report will be displayed here -->
+    </div>
+
+    <script>
+        // Fetch equipment data from the Flask API
+        function fetchEquipment() {
+            $.get('/equipment', function(data) {
+                $('#equipment-table tbody').empty();
+                data.forEach(function(eq) {
+                    const row = $('<tr>');
+                    row.append(`<td>${eq.name}</td>`);
+                    row.append(`<td class="${eq.status}">${eq.status}</td>`);
+                    row.append(`<td>${eq.usage_count}</td>`);
+                    row.append(` <td> ${eq.status === 'available' ? `<button class="reserve-btn" data-id="${eq.id}">Reserve</button>` : ''} </td>`);
+                    $('#equipment-table tbody').append(row);
+                });
+            });
+        }
+
+        // Handle reservation form submission
+        $('#reservation-form').submit(function(event) {
+            event.preventDefault();
+
+            const equipmentId = $('#equipment-id').val();
+            const user = $('#user').val();
+            const timeSlot = $('#time-slot').val();
+
+            $.ajax({
+                url: '/reserve',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ equipment_id: equipmentId, user: user, time_slot: timeSlot }),
+                success: function(response) {
+                    alert(response.message);
+                    fetchEquipment();  // Refresh equipment list
+                },
+                error: function(response) {
+                    alert(response.responseJSON.message);
+                }
+            });
+        });
+
+        // Handle release form submission
+        $('#release-form').submit(function(event) {
+            event.preventDefault();
+
+            const equipmentId = $('#release-equipment-id').val();
+
+            $.post(`/release/${equipmentId}`, function(response) {
+                alert(response.message);
+                fetchEquipment();  // Refresh equipment list
+            }).fail(function(response) {
+                alert(response.responseJSON.message);
+            });
+        });
+
+        // Handle student report form submission
+        $('#student-report-form').submit(function(event) {
+            event.preventDefault();
+
+            const studentName = $('#student-name').val();
+
+            $.get(`/generate-student-report/${studentName}`, function(data) {
+                let reportHtml = `<h3>Reservation Report for ${data.student}</h3>`;
+                reportHtml += `<p>Total Reservations: ${data.total_reservations}</p>`;
+
+                if (data.total_reservations > 0) {
+                    reportHtml += `<ul>`;
+                    data.equipment_used.forEach(function(item) {
+                        reportHtml += `<li>${item.equipment_name} - ${item.time_slot}</li>`;
+                    });
+                    reportHtml += `</ul>`;
+                } else {
+                    reportHtml += `<p>No reservations found.</p>`;
+                }
+
+                $('#student-report').html(reportHtml);
+            }).fail(function(response) {
+                alert(response.responseJSON.message);
+            });
+        });
+
+        // Initial load of equipment
+        $(document).ready(function() {
+            fetchEquipment();
+
+            // Handle the "Reserve" button clicks
+            $(document).on('click', '.reserve-btn', function() {
+                const equipmentId = $(this).data('id');
+                $('#equipment-id').val(equipmentId);
+            });
+        });
+    </script>
+
+</body>
+</html>
